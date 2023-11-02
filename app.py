@@ -6,7 +6,6 @@ import dash
 from dash import dcc
 from dash import html
 
-import pathlib
 
 import webbrowser
 
@@ -23,10 +22,6 @@ app.config.suppress_callback_exceptions = True
 url = "http://127.0.0.1:8050/"
 time.sleep(2)
 webbrowser.open(url)
-
-# Path
-BASE_PATH = pathlib.Path(__file__).parent.resolve()
-DATA_PATH = BASE_PATH.joinpath("data").resolve()
 
 # Define the layout of the web application
 app.layout = html.Div([
