@@ -1,14 +1,11 @@
+# Sebastian Rodriguez - A01700378
+
 import time
 
 import dash
 from dash import dcc
 from dash import html
-from dash.dependencies import Input, Output, ClientsideFunction
 
-import numpy as np
-import pandas as pd
-import datetime
-from datetime import datetime as dt
 import pathlib
 
 import webbrowser
@@ -31,6 +28,7 @@ webbrowser.open(url)
 BASE_PATH = pathlib.Path(__file__).parent.resolve()
 DATA_PATH = BASE_PATH.joinpath("data").resolve()
 
+# Define the layout of the web application
 app.layout = html.Div([
     html.Div([
         html.Div([
@@ -38,10 +36,11 @@ app.layout = html.Div([
             html.H3("Simulador Computacional de Procesos"),
             html.Div(id="intro", children=""),
         ], id="description-card", className="twelve columns"),
-    ], className="row"),
+    ], className="row", style={'padding': '10px'}),
 
     html.Div([
         html.Div([
+            # Input fields for ARX model coefficients
             html.Label('Coeficientes del modelo ARX'),
             html.Table([
                 html.Tr([
@@ -60,8 +59,9 @@ app.layout = html.Div([
                     html.Td(dcc.Input(id='a4', type='number', placeholder='a4')),
                     html.Td(dcc.Input(id='b4', type='number', placeholder='b4'))
                 ])
-            ]),
+            ], style={'padding': '10px'}),
 
+            # Dropdown for selecting input signal type
             html.Label('Selección de Entrada'),
             dcc.Dropdown(
                 id='entrada-dropdown',
@@ -72,8 +72,10 @@ app.layout = html.Div([
                 value='escalon'  # Default value
             ),
 
+            # Input field for amplitude of input signal
             dcc.Input(id='amp', type='number', placeholder='Amplitud'),
 
+            # Slider for selecting the sampling interval
             html.Label('Intervalo de Muestreo'),
             dcc.Slider(
                 id='intervalo-slider',
@@ -84,22 +86,27 @@ app.layout = html.Div([
                 value=5  # Default value
             ),
 
+            # Input field for amplitude of perturbation signal
             html.Label('Perturbación'),
             dcc.Input(id='amp_pert', type='number', placeholder='Amplitud'),
 
+            # Start and stop buttons
             html.Div([
                 html.Button('EMPEZAR', id='start-button', n_clicks=0),
                 html.Button('STOP', id='stop-button', n_clicks=0),
-            ]),
+            ], style={'padding': '10px'}),
 
+            # Student information
             html.Label('Sebastian Rodriguez Castro - A01700378'),
 
-        ], id="control-card", className="four columns"),
+        ], id="control-card", className="four columns", style={'padding': '10px'}),
 
         html.Div([
+            # Graphs for displaying results
             dcc.Graph(id='graph1'),
-            dcc.Graph(id='graph2')]
-            , className="eight columns"),
+            dcc.Graph(id='graph2')
+        ], className="eight columns", style={'padding': '10px'}),
+
     ], id="graph-card"),
 
 ])
