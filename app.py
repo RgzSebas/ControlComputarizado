@@ -31,33 +31,17 @@ webbrowser.open(url)
 BASE_PATH = pathlib.Path(__file__).parent.resolve()
 DATA_PATH = BASE_PATH.joinpath("data").resolve()
 
-
-def description_card():
-    """
-
-    :return: A Div containing dashboard title & descriptions.
-    """
-    return html.Div(
-        id="description-card",
-        children=[
+app.layout = html.Div([
+    html.Div([
+        html.Div([
             html.H5("Control Computarizado"),
             html.H3("Simulador Computacional de Procesos"),
-            html.Div(
-                id="intro",
-                children="",
-            ),
-        ],
-    )
+            html.Div(id="intro", children=""),
+        ], id="description-card", className="twelve columns"),
+    ], className="row"),
 
-
-def generate_control_card():
-    """
-
-    :return: A Div containing controls for graphs.
-    """
-    return html.Div(
-        id="control-card",
-        children=[
+    html.Div([
+        html.Div([
             html.Label('Coeficientes del modelo ARX'),
             html.Table([
                 html.Tr([
@@ -79,14 +63,15 @@ def generate_control_card():
             ]),
 
             html.Label('Selección de Entrada'),
-                    dcc.Dropdown(
-                    id='entrada-dropdown',
-                    options=[
-                        {'label': 'Escalon', 'value': 'escalon'},
-                        {'label': 'Sierra', 'value': 'sierra'}
-                    ],
-                    value='escalon'  # Default value
-                ),
+            dcc.Dropdown(
+                id='entrada-dropdown',
+                options=[
+                    {'label': 'Escalon', 'value': 'escalon'},
+                    {'label': 'Sierra', 'value': 'sierra'}
+                ],
+                value='escalon'  # Default value
+            ),
+
             dcc.Input(id='amp', type='number', placeholder='Amplitud'),
 
             html.Label('Intervalo de Muestreo'),
@@ -95,42 +80,28 @@ def generate_control_card():
                 min=0,
                 max=4,
                 step=1,
-                marks=["0.01s", "0.05s", "0.1s", "0.5s", "1s"],
+                marks={"0": "0.01s", "1": "0.05s", "2": "0.1s", "3": "0.5s", "4": "1s"},
                 value=5  # Default value
             ),
 
             html.Label('Perturbación'),
             dcc.Input(id='amp_pert', type='number', placeholder='Amplitud'),
 
-
-            html.Button('EMPEZAR', id='start-button', n_clicks=0),
-            html.Button('STOP', id='stop-button', n_clicks=0),
+            html.Div([
+                html.Button('EMPEZAR', id='start-button', n_clicks=0),
+                html.Button('STOP', id='stop-button', n_clicks=0),
+            ]),
 
             html.Label('Sebastian Rodriguez Castro - A01700378'),
-            ],
-    )
 
-# Create a function to generate the graphs
-def generate_graphs():
-    return html.Div(
-        id="graph-card",
-        children=[
-            dcc.Graph(id='graph1'),  # First graph
-            dcc.Graph(id='graph2')   # Second graph
-        ]
-    )
+        ], id="control-card", className="four columns"),
 
-app.layout = html.Div([
+        html.Div([
+            dcc.Graph(id='graph1'),
+            dcc.Graph(id='graph2')]
+            , className="eight columns"),
+    ], id="graph-card"),
 
-    html.Div([
-        description_card(),
-        generate_control_card()
-    ], className="four columns"),
-
-    # Add the graphs in the second column
-    html.Div([
-        generate_graphs()
-    ], className="eight columns")
 ])
 
 # Run the server
