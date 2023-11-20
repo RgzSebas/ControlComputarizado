@@ -67,8 +67,11 @@ app.layout = html.Div([
                 ])
             ], style={'padding': '10px'}),
 
+            html.Label('Setpoint - Modo Automatico'),
+            dcc.Input(id='setpoint', type='number', placeholder='Setpoint'),
+
             # Dropdown for selecting input signal type
-            html.Label('Selección de Entrada'),
+            html.Label('Entrada - Modo Manual'),
             dcc.Dropdown(
                 id='entrada-dropdown',
                 options=[
@@ -155,7 +158,7 @@ def control_simulation(start_clicks, stop_clicks):
 # Callback to adjust the update interval based on the slider value
 @app.callback(
     Output('interval-component', 'interval'),
-    [Input('intervalo-slider', 'value')]
+    [Input('intervalo-slider', 'value')],
 )
 def update_interval(value):
     # Map the slider value to a specific time interval in milliseconds
@@ -165,18 +168,16 @@ def update_interval(value):
 
 @app.callback(
     [Output('graph_input', 'figure'), Output('graph_output', 'figure')],
-    [Input('interval-component', 'n_intervals'),
-     Input('start-button', 'n_clicks'),
-     Input('stop-button', 'n_clicks'),
-     Input('reset-button', 'n_clicks')],
+    [Input('interval-component', 'n_intervals'), Input('start-button', 'n_clicks'),
+     Input('stop-button', 'n_clicks'), Input('reset-button', 'n_clicks')],
     [State('a1', 'value'), State('a2', 'value'), State('a3', 'value'), State('a4', 'value'),
      State('b1', 'value'), State('b2', 'value'), State('b3', 'value'), State('b4', 'value'),
      State('entrada-dropdown', 'value'), State('amp', 'value'), State('amp_pert', 'value'),
-     State('mode-switch', 'value')],
+     State('mode-switch', 'value'), State('setpoint', 'value'), State('intervalo-slider', 'value')],  # Include setpoint here
     prevent_initial_call=True
 )
 def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_clicks,
-                            a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch):
+                            a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch, setpoint, intervalo_slider_value):
     global y, u, step, is_simulation_running
 
     # Determine which input triggered the callback
@@ -208,19 +209,34 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         b = [b1, b2, b3, b4]
         current_mode = 'Automatico' if mode_switch else 'Manual'
 
-        # Generate input signal based on dropdown selection
-        if entrada_type == 'escalon':
-            u_t = amp if step < 50 else amp_pert  # Example of step input
-        elif entrada_type == 'sierra':
-            u_t = (step % 1) * amp  # Example of sawtooth input
-        else:
-            u_t = 0  # Default value
+        if current_mode == 'Automatico':
+            # Auto-tune PID parameters based on the setpoint
+            Kp, Ki, Kd = auto_tune_pid(setpoint, y[-1])
 
-        # Advance the simulation by one step
-        y_t = arx_step(y, u, a, b, d)
-        y.append(y_t)
-        u.append(u_t)
-        step += 1
+            # Map the slider value to an actual time interval
+            interval_map = {0: 0.01, 1: 0.05, 2: 0.1, 3: 0.5, 4: 1}
+            dt = interval_map.get(intervalo_slider_value, 1)  # Default to 1 second
+
+            # PID controller for automatic mode
+            u_t = pid_controller(setpoint, y[-1], Kp, Ki, Kd, dt)
+            y_t = arx_step(y, u, a, b, d)
+            y.append(y_t)
+            u.append(u_t)
+            step += 1
+        else:
+            # Generate input signal based on dropdown selection
+            if entrada_type == 'escalon':
+                u_t = amp if step < 50 else amp_pert  # Example of step input
+            elif entrada_type == 'sierra':
+                u_t = (step % 1) * amp  # Example of sawtooth input
+            else:
+                u_t = 0  # Default value
+
+            # Advance the simulation by one step
+            y_t = arx_step(y, u, a, b, d)
+            y.append(y_t)
+            u.append(u_t)
+            step += 1
 
         # Create figures for input and output
         input_fig = go.Figure(data=[go.Scatter(x=list(range(len(u))), y=u, mode='lines+markers')],
@@ -254,6 +270,23 @@ def arx_step(y, u, a, b, d):
         if len(u) > d + j:
             y_t += b[j] * u[-d-j-1]
     return y_t
+
+def pid_controller(set_point, current_value, Kp, Ki, Kd, dt):
+    error = set_point - current_value
+    integral = error * dt
+    derivative = (error - (set_point - current_value)) / dt
+    return Kp * error + Ki * integral + Kd * derivative
+
+def auto_tune_pid(set_point, output):
+    # Basic heuristic for PID tuning
+    # This is a simple example and should be replaced with a more sophisticated method
+    Kp = 0.2 * set_point
+    Ki = 0.05 * set_point
+    Kd = 0.1 * set_point
+    return Kp, Ki, Kd
+
+
+
 
 # Run the server
 if __name__ == "__main__":
