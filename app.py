@@ -41,6 +41,7 @@ app.layout = html.Div([
 
     html.Div([
         html.Div([
+            html.Div(id='feedback', children='', style={'color': 'red'}),
             # Input fields for ARX model coefficients
             daq.ToggleSwitch(
                 id='mode-switch',
@@ -97,7 +98,7 @@ app.layout = html.Div([
 
             # Input field for amplitude of perturbation signal
             html.Label('Perturbación'),
-            dcc.Input(id='amp_pert', type='number', placeholder='Amplitud'),
+            dcc.Input(id='amp_pert', type='number', placeholder='Amplitud', value=0),
 
             # Start and stop buttons
             html.Div([
@@ -140,20 +141,41 @@ def update_mode(switch_value):
 # Global variable to track if the simulation should run
 is_simulation_running = False
 
-# Callback to start or stop the simulation
+# Callback to start or stop the simulation and provide feedback
 @app.callback(
-    Output('start-stop-trigger', 'children'),  # An invisible div to trigger simulation
+    [Output('start-stop-trigger', 'children'), Output('feedback', 'children')],
     [Input('start-button', 'n_clicks'), Input('stop-button', 'n_clicks')],
+    [State('mode-switch', 'value'), State('entrada-dropdown', 'value'), State('amp', 'value'),
+     State('amp_pert', 'value'), State('a1', 'value'), State('setpoint', 'value')],
     prevent_initial_call=True
 )
-def control_simulation(start_clicks, stop_clicks):
+def control_simulation(start_clicks, stop_clicks, mode_switch, entrada_type, amp, amp_pert, a1, setpoint):
     global is_simulation_running
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    feedback_message = ""
+
     if 'start-button' in changed_id:
+        missing_inputs = []
+        # Check required inputs based on the mode
+        if mode_switch:  # Automatic mode
+            if a1 is None: missing_inputs.append("a1 (ARX Coefficient)")
+            if setpoint is None: missing_inputs.append("Setpoint")
+            #if amp_pert is None: missing_inputs.append("Amplitude of Perturbation")
+        else:  # Manual mode
+            if entrada_type is None: missing_inputs.append("Type of Input (Entrada)")
+            if amp is None: missing_inputs.append("Amplitude")
+            #if amp_pert is None: missing_inputs.append("Amplitude of Perturbation")
+            if a1 is None: missing_inputs.append("a1 (ARX Coefficient)")
+
+        if missing_inputs:
+            feedback_message = "Please provide: " + ", ".join(missing_inputs)
+            return "", feedback_message
+
         is_simulation_running = True
     elif 'stop-button' in changed_id:
         is_simulation_running = False
-    return ""  # Return value not used
+
+    return "", feedback_message
 
 # Callback to adjust the update interval based on the slider value
 @app.callback(
@@ -201,8 +223,12 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
 
     elif trigger_id == 'interval-component' and is_simulation_running:
         # Check if all required inputs are provided
-        if None in [a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert]:
+        if None in [a1]:
             raise dash.exceptions.PreventUpdate
+
+        # Map the slider value to an actual time interval
+        interval_map = {0: 0.01, 1: 0.05, 2: 0.1, 3: 0.5, 4: 1}
+        dt = interval_map.get(intervalo_slider_value, 1)  # Default to 1 second
 
         # Update the ARX coefficients and current mode based on user inputs
         a = [a1, a2, a3, a4]
@@ -213,10 +239,6 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
             # Auto-tune PID parameters based on the setpoint
             Kp, Ki, Kd = auto_tune_pid(setpoint, y[-1])
 
-            # Map the slider value to an actual time interval
-            interval_map = {0: 0.01, 1: 0.05, 2: 0.1, 3: 0.5, 4: 1}
-            dt = interval_map.get(intervalo_slider_value, 1)  # Default to 1 second
-
             # PID controller for automatic mode
             u_t = pid_controller(setpoint, y[-1], Kp, Ki, Kd, dt)
             y_t = arx_step(y, u, a, b, d)
@@ -226,7 +248,7 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         else:
             # Generate input signal based on dropdown selection
             if entrada_type == 'escalon':
-                u_t = amp if step < 50 else amp_pert  # Example of step input
+                u_t = amp 
             elif entrada_type == 'sierra':
                 u_t = (step % 1) * amp  # Example of sawtooth input
             else:
@@ -260,16 +282,32 @@ b = [1, 0.5]  # ARX model input coefficients
 d = 1  # Discrete dead time
 step = 0  # Current simulation step
 
-# ARX Model Function (adapted for step-by-step simulation)
-def arx_step(y, u, a, b, d):
+
+def arx_step(y, u, a_coeffs, b_coeffs, d):
+    """
+    Calculates the next step in the ARX model.
+
+    :param y: List of previous output values of the system.
+    :param u: List of input values to the system.
+    :param a_coeffs: List of coefficients for output values (a1, a2, ...). None if not provided.
+    :param b_coeffs: List of coefficients for input values (b1, b2, ...). None if not provided.
+    :param d: Discrete dead time.
+    :return: Next output value of the system.
+    """
     y_t = 0
-    for i in range(len(a)):
-        if len(y) > i:
-            y_t -= a[i] * y[-i-1]
-    for j in range(len(b)):
-        if len(u) > d + j:
-            y_t += b[j] * u[-d-j-1]
+
+    # Handle a_coeffs
+    for i, a in enumerate(a_coeffs):
+        if a is not None and len(y) > i:
+            y_t -= a * y[-i - 1]
+
+    # Handle b_coeffs
+    for j, b in enumerate(b_coeffs):
+        if b is not None and len(u) > d + j:
+            y_t += b * u[-d - j - 1]
+
     return y_t
+
 
 def pid_controller(set_point, current_value, Kp, Ki, Kd, dt):
     error = set_point - current_value
