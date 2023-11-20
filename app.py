@@ -1,13 +1,19 @@
 # Sebastian Rodriguez - A01700378
 
 import time
+import numpy as np
 
 import dash
-from dash import dcc
-from dash import html
-
+from dash import dcc, html
+import dash_daq as daq
+import plotly.graph_objs as go
+from dash.dependencies import Input, Output, State
 
 import webbrowser
+
+# Define global variables
+current_mode = 'Manual'  # 'Manual' or 'Automatic'
+# Add other global variables for model parameters and state here
 
 app = dash.Dash(
     __name__,
@@ -36,6 +42,11 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             # Input fields for ARX model coefficients
+            daq.ToggleSwitch(
+                id='mode-switch',
+                label='Manual - Automatico',
+                labelPosition='bottom'),
+            #html.Div(id='mode-switch-output'),
             html.Label('Coeficientes del modelo ARX'),
             html.Table([
                 html.Tr([
@@ -88,6 +99,7 @@ app.layout = html.Div([
             # Start and stop buttons
             html.Div([
                 html.Button('EMPEZAR', id='start-button', n_clicks=0),
+                html.Div(id='start-stop-trigger', style={'display': 'none'}),  # Invisible div for triggering updates
                 html.Button('STOP', id='stop-button', n_clicks=0),
             ], style={'padding': '10px'}),
 
@@ -98,14 +110,121 @@ app.layout = html.Div([
 
         html.Div([
             # Graphs for displaying results
-            dcc.Graph(id='graph1'),
-            dcc.Graph(id='graph2')
+            dcc.Graph(id='graph_input'),
+            dcc.Graph(id='graph_output'),
+            dcc.Interval(
+                    id='interval-component',
+                    interval=1*1000,  # in milliseconds (update every 1 second)
+                    n_intervals=0
+                ),
         ], className="eight columns", style={'padding': '10px'}),
 
     ], id="graph-card"),
 
 ])
 
+# Callback for the Toggle Switch
+@app.callback(
+    Output('mode-switch-output', 'children'),  # Update this with actual output component
+    Input('mode-switch', 'value')
+)
+def update_mode(switch_value):
+    global current_mode
+    current_mode = 'Automatico' if switch_value else 'Manual'
+    return current_mode
+
+# Global variable to track if the simulation should run
+is_simulation_running = False
+
+# Callback to start or stop the simulation
+@app.callback(
+    Output('start-stop-trigger', 'children'),  # An invisible div to trigger simulation
+    [Input('start-button', 'n_clicks'), Input('stop-button', 'n_clicks')],
+    prevent_initial_call=True
+)
+def control_simulation(start_clicks, stop_clicks):
+    global is_simulation_running
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    if 'start-button' in changed_id:
+        is_simulation_running = True
+    elif 'stop-button' in changed_id:
+        is_simulation_running = False
+    return ""  # Return value not used
+
+# Callback to update the graph
+@app.callback(
+    [Output('graph_input', 'figure'), Output('graph_output', 'figure')],
+    [Input('interval-component', 'n_intervals'),
+     Input('start-stop-trigger', 'children')],  # Triggered by start/stop
+    [State('a1', 'value'), State('a2', 'value'), State('a3', 'value'), State('a4', 'value'),
+     State('b1', 'value'), State('b2', 'value'), State('b3', 'value'), State('b4', 'value'),
+     State('entrada-dropdown', 'value'), State('amp', 'value'), State('amp_pert', 'value'),
+     State('mode-switch', 'value')]
+)
+def update_graph_live(n, trigger, a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch):
+    global y, u, step, current_mode, is_simulation_running
+
+    # Check if simulation should run
+    if not is_simulation_running:
+        raise dash.exceptions.PreventUpdate
+
+    # Check if all required inputs are provided
+    if None in [a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert]:
+        raise dash.exceptions.PreventUpdate
+
+    # Update ARX coefficients and current mode based on user inputs
+    a = [a1, a2, a3, a4]
+    b = [b1, b2, b3, b4]
+    current_mode = 'Automatico' if mode_switch else 'Manual'
+
+    # Generate input signal based on dropdown selection
+    if entrada_type == 'escalon':
+        u_t = amp if step < 50 else amp_pert  # Example of step input
+    elif entrada_type == 'sierra':
+        u_t = (step % 10) * amp  # Example of sawtooth input
+    else:
+        u_t = 0  # Default value
+
+    # Advance the simulation by one step
+    if current_mode == 'Manual':
+        y_t = arx_step(y, u, a, b, d)
+        y.append(y_t)
+        u.append(u_t)
+        step += 1
+
+    # Handle Automatic mode with PID controller here (not implemented)
+
+    # Create new figures for input and output
+    input_fig = go.Figure(data=[go.Scatter(x=list(range(len(u))), y=u, mode='lines+markers')],
+                          layout=go.Layout(title='Input Signal', xaxis=dict(title='Time'),
+                                           yaxis=dict(title='Input Value')))
+
+    output_fig = go.Figure(data=[go.Scatter(x=list(range(len(y))), y=y, mode='lines+markers')],
+                           layout=go.Layout(title='System Output', xaxis=dict(title='Time'),
+                                            yaxis=dict(title='Output Value')))
+
+    return input_fig, output_fig
+
+
+# Initialize global variables for the simulation
+y = [0]  # Output of the system
+u = [0]  # Input to the system
+a = [0.5, 0.2]  # ARX model output coefficients
+b = [1, 0.5]  # ARX model input coefficients
+d = 1  # Discrete dead time
+step = 0  # Current simulation step
+
+# ARX Model Function (adapted for step-by-step simulation)
+def arx_step(y, u, a, b, d):
+    y_t = 0
+    for i in range(len(a)):
+        if len(y) > i:
+            y_t -= a[i] * y[-i-1]
+    for j in range(len(b)):
+        if len(u) > d + j:
+            y_t += b[j] * u[-d-j-1]
+    return y_t
+
 # Run the server
 if __name__ == "__main__":
-    app.run_server(debug=False)
+    app.run_server(debug=True)
