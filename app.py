@@ -89,7 +89,7 @@ app.layout = html.Div([
                 max=4,
                 step=1,
                 marks={"0": "0.1s", "1": "0.25s", "2": "0.5s", "3": "1s", "4": "10s"},
-                value=5  # Default value
+                value=2  # Default value
             ),
 
             # Input field for amplitude of perturbation signal
@@ -162,60 +162,79 @@ def update_interval(value):
     intervals = {0: 100, 1: 250, 2: 500, 3: 1000, 4: 10000}
     return intervals.get(value, 1000)  # Default to 1 second if value is not in the dictionary
 
-# Callback to update the graph
+
 @app.callback(
     [Output('graph_input', 'figure'), Output('graph_output', 'figure')],
     [Input('interval-component', 'n_intervals'),
-     Input('start-stop-trigger', 'children')],  # Triggered by start/stop
+     Input('start-button', 'n_clicks'),
+     Input('stop-button', 'n_clicks'),
+     Input('reset-button', 'n_clicks')],
     [State('a1', 'value'), State('a2', 'value'), State('a3', 'value'), State('a4', 'value'),
      State('b1', 'value'), State('b2', 'value'), State('b3', 'value'), State('b4', 'value'),
      State('entrada-dropdown', 'value'), State('amp', 'value'), State('amp_pert', 'value'),
-     State('mode-switch', 'value')]
+     State('mode-switch', 'value')],
+    prevent_initial_call=True
 )
-def update_graph_live(n, trigger, a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch):
-    global y, u, step, current_mode, is_simulation_running
+def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_clicks,
+                            a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch):
+    global y, u, step, is_simulation_running
 
-    # Check if simulation should run
-    if not is_simulation_running:
+    # Determine which input triggered the callback
+    ctx = dash.callback_context
+    if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    # Check if all required inputs are provided
-    if None in [a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert]:
-        raise dash.exceptions.PreventUpdate
+    if trigger_id == 'reset-button':
+        # Reset logic
+        y = [0]
+        u = [0]
+        step = 0
+        is_simulation_running = False
+        # Create empty figures for input and output
+        input_fig = go.Figure(
+            layout=go.Layout(title='Input Signal', xaxis=dict(title='Time'), yaxis=dict(title='Input Value')))
+        output_fig = go.Figure(
+            layout=go.Layout(title='System Output', xaxis=dict(title='Time'), yaxis=dict(title='Output Value')))
+        return input_fig, output_fig
 
-    # Update ARX coefficients and current mode based on user inputs
-    a = [a1, a2, a3, a4]
-    b = [b1, b2, b3, b4]
-    current_mode = 'Automatico' if mode_switch else 'Manual'
+    elif trigger_id == 'interval-component' and is_simulation_running:
+        # Check if all required inputs are provided
+        if None in [a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert]:
+            raise dash.exceptions.PreventUpdate
 
-    # Generate input signal based on dropdown selection
-    if entrada_type == 'escalon':
-        u_t = amp if step < 50 else amp_pert  # Example of step input
-    elif entrada_type == 'sierra':
-        u_t = (step % 10) * amp  # Example of sawtooth input
-    else:
-        u_t = 0  # Default value
+        # Update the ARX coefficients and current mode based on user inputs
+        a = [a1, a2, a3, a4]
+        b = [b1, b2, b3, b4]
+        current_mode = 'Automatico' if mode_switch else 'Manual'
 
-    # Advance the simulation by one step
-    if current_mode == 'Manual':
+        # Generate input signal based on dropdown selection
+        if entrada_type == 'escalon':
+            u_t = amp if step < 50 else amp_pert  # Example of step input
+        elif entrada_type == 'sierra':
+            u_t = (step % 1) * amp  # Example of sawtooth input
+        else:
+            u_t = 0  # Default value
+
+        # Advance the simulation by one step
         y_t = arx_step(y, u, a, b, d)
         y.append(y_t)
         u.append(u_t)
         step += 1
 
-    # Handle Automatic mode with PID controller here (not implemented)
+        # Create figures for input and output
+        input_fig = go.Figure(data=[go.Scatter(x=list(range(len(u))), y=u, mode='lines+markers')],
+                              layout=go.Layout(title='Input Signal', xaxis=dict(title='Time'),
+                                               yaxis=dict(title='Input Value')))
 
-    # Create new figures for input and output
-    input_fig = go.Figure(data=[go.Scatter(x=list(range(len(u))), y=u, mode='lines+markers')],
-                          layout=go.Layout(title='Input Signal', xaxis=dict(title='Time'),
-                                           yaxis=dict(title='Input Value')))
+        output_fig = go.Figure(data=[go.Scatter(x=list(range(len(y))), y=y, mode='lines+markers')],
+                               layout=go.Layout(title='System Output', xaxis=dict(title='Time'),
+                                                yaxis=dict(title='Output Value')))
 
-    output_fig = go.Figure(data=[go.Scatter(x=list(range(len(y))), y=y, mode='lines+markers')],
-                           layout=go.Layout(title='System Output', xaxis=dict(title='Time'),
-                                            yaxis=dict(title='Output Value')))
+        return input_fig, output_fig
 
-    return input_fig, output_fig
-
+    # Return existing figures if no update or reset is required
+    return dash.no_update
 
 # Initialize global variables for the simulation
 y = [0]  # Output of the system
