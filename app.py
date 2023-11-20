@@ -88,7 +88,7 @@ app.layout = html.Div([
                 min=0,
                 max=4,
                 step=1,
-                marks={"0": "0.01s", "1": "0.05s", "2": "0.1s", "3": "0.5s", "4": "1s"},
+                marks={"0": "0.1s", "1": "0.25s", "2": "0.5s", "3": "1s", "4": "10s"},
                 value=5  # Default value
             ),
 
@@ -101,6 +101,7 @@ app.layout = html.Div([
                 html.Button('EMPEZAR', id='start-button', n_clicks=0),
                 html.Div(id='start-stop-trigger', style={'display': 'none'}),  # Invisible div for triggering updates
                 html.Button('STOP', id='stop-button', n_clicks=0),
+                html.Button('RESET', id='reset-button', n_clicks=0),
             ], style={'padding': '10px'}),
 
             # Student information
@@ -158,7 +159,7 @@ def control_simulation(start_clicks, stop_clicks):
 )
 def update_interval(value):
     # Map the slider value to a specific time interval in milliseconds
-    intervals = {0: 10, 1: 50, 2: 100, 3: 500, 4: 1000}
+    intervals = {0: 100, 1: 250, 2: 500, 3: 1000, 4: 10000}
     return intervals.get(value, 1000)  # Default to 1 second if value is not in the dictionary
 
 # Callback to update the graph
