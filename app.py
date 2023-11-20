@@ -151,6 +151,16 @@ def control_simulation(start_clicks, stop_clicks):
         is_simulation_running = False
     return ""  # Return value not used
 
+# Callback to adjust the update interval based on the slider value
+@app.callback(
+    Output('interval-component', 'interval'),
+    [Input('intervalo-slider', 'value')]
+)
+def update_interval(value):
+    # Map the slider value to a specific time interval in milliseconds
+    intervals = {0: 10, 1: 50, 2: 100, 3: 500, 4: 1000}
+    return intervals.get(value, 1000)  # Default to 1 second if value is not in the dictionary
+
 # Callback to update the graph
 @app.callback(
     [Output('graph_input', 'figure'), Output('graph_output', 'figure')],
