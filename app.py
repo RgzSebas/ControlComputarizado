@@ -48,7 +48,7 @@ app.layout = html.Div([
                 label='Manual - Automatico',
                 labelPosition='bottom'),
             #html.Div(id='mode-switch-output'),
-            html.Label('Coeficientes del modelo ARX'),
+            html.Label('Coeficientes del modelo ARX (Requiere minimo a1)'),
             html.Table([
                 html.Tr([
                     html.Td(dcc.Input(id='a1', type='number', placeholder='a1')),
@@ -102,7 +102,7 @@ app.layout = html.Div([
 
             # Start and stop buttons
             html.Div([
-                html.Button('EMPEZAR', id='start-button', n_clicks=0),
+                html.Button('START', id='start-button', n_clicks=0),
                 html.Div(id='start-stop-trigger', style={'display': 'none'}),  # Invisible div for triggering updates
                 html.Button('STOP', id='stop-button', n_clicks=0),
                 html.Button('RESET', id='reset-button', n_clicks=0),
@@ -177,15 +177,16 @@ def control_simulation(start_clicks, stop_clicks, mode_switch, entrada_type, amp
 
     return "", feedback_message
 
+
 # Callback to adjust the update interval based on the slider value
 @app.callback(
     Output('interval-component', 'interval'),
     [Input('intervalo-slider', 'value')],
 )
 def update_interval(value):
-    # Map the slider value to a specific time interval in milliseconds
-    intervals = {0: 100, 1: 250, 2: 500, 3: 1000, 4: 10000}
-    return intervals.get(value, 1000)  # Default to 1 second if value is not in the dictionary
+    # Map the slider value to an actual time interval in milliseconds
+    intervals = {0: 100, 1: 250, 2: 500, 3: 1000, 4: 10000}  # These values are in milliseconds
+    return intervals.get(value, 1000)  # Default to 1 second (1000 ms) if value is not in the dictionary
 
 
 @app.callback(
@@ -227,7 +228,7 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
             raise dash.exceptions.PreventUpdate
 
         # Map the slider value to an actual time interval
-        interval_map = {0: 0.01, 1: 0.05, 2: 0.1, 3: 0.5, 4: 1}
+        interval_map = {0: 0.1, 1: 0.25, 2: 0.5, 3: 1, 4: 10}
         dt = interval_map.get(intervalo_slider_value, 1)  # Default to 1 second
 
         # Update the ARX coefficients and current mode based on user inputs
@@ -248,7 +249,7 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         else:
             # Generate input signal based on dropdown selection
             if entrada_type == 'escalon':
-                u_t = amp 
+                u_t = amp
             elif entrada_type == 'sierra':
                 u_t = (step % 1) * amp  # Example of sawtooth input
             else:
@@ -260,14 +261,19 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
             u.append(u_t)
             step += 1
 
-        # Create figures for input and output
-        input_fig = go.Figure(data=[go.Scatter(x=list(range(len(u))), y=u, mode='lines+markers')],
-                              layout=go.Layout(title='Input Signal', xaxis=dict(title='Time'),
-                                               yaxis=dict(title='Input Value')))
+        # Generate time array based on the number of data points and the sampling interval
+        time_array = np.arange(0, len(u) * dt, dt)[:len(u)]
 
-        output_fig = go.Figure(data=[go.Scatter(x=list(range(len(y))), y=y, mode='lines+markers')],
-                               layout=go.Layout(title='System Output', xaxis=dict(title='Time'),
-                                                yaxis=dict(title='Output Value')))
+        # Update the graph data to use time_array for the x-axis
+        input_fig = go.Figure(
+            data=[go.Scatter(x=time_array, y=u, mode='lines+markers')],
+            layout=go.Layout(title='Input Signal', xaxis=dict(title='Time (s)'), yaxis=dict(title='Input Value'))
+        )
+
+        output_fig = go.Figure(
+            data=[go.Scatter(x=time_array, y=y, mode='lines+markers')],
+            layout=go.Layout(title='System Output', xaxis=dict(title='Time (s)'), yaxis=dict(title='Output Value'))
+        )
 
         return input_fig, output_fig
 
