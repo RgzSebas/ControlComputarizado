@@ -136,7 +136,7 @@ app.layout = html.Div([
                 max=4,
                 step=1,
                 marks={"0": "0.1s", "1": "0.25s", "2": "0.5s", "3": "1s", "4": "10s"},
-                value=1  # Default value
+                value=0  # Default value
             ),
 
             html.Hr(),
@@ -307,6 +307,9 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         b = [b1, b2, b3, b4]
         current_mode = 'Automatico' if mode_switch else 'Manual'
 
+
+
+        # Inside the simulation loop
         if current_mode == 'Automatico':
             # Use user-provided PID parameters
             # Check if PID parameters are provided
@@ -315,10 +318,13 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
 
             # PID controller for automatic mode
             u_t = pid_controller(setpoint, y[-1], Kp, Ki, Kd, dt)
-            y_t = arx_step(y, u, a, b, d)
+            y_t = arx_step(y, u, a, b, d, amp_pert)
             y.append(y_t)
             u.append(u_t)
             step += 1
+
+            pid_error = setpoint - y_t  # Calculate the PID error
+            pid_errors.append(pid_error)  # Store the error
         else:
             # Generate input signal based on dropdown selection
             if entrada_type == 'escalon':
@@ -329,7 +335,7 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
                 u_t = 0  # Default value
 
             # Advance the simulation by one step
-            y_t = arx_step(y, u, a, b, d)
+            y_t = arx_step(y, u, a, b, d, amp_pert)
             y.append(y_t)
             u.append(u_t)
             step += 1
@@ -339,16 +345,39 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
 
         # Update the graph data to use time_array for the x-axis
         input_fig = go.Figure(
-            data=[go.Scatter(x=time_array, y=u, mode='lines+markers')],
-            layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                             margin=dict(l=30, r=20, t=50, b=20))
+            data=[
+                go.Scatter(x=time_array, y=u, mode='lines+markers', name='Señal de Entrada'),
+                go.Scatter(x=time_array, y=[amp_pert] * len(time_array), mode='lines+markers', name='Perturbacion')
+            ],
+            layout=go.Layout(
+                title='Señal de Entrada',
+                xaxis=dict(title='Tiempo (s)'),
+                yaxis=dict(title='Magnitud'),
+                margin=dict(l=30, r=20, t=50, b=20),
+            )
         )
 
+        # Logic for updating output_fig
         output_fig = go.Figure(
-            data=[go.Scatter(x=time_array, y=y, mode='lines+markers')],
-            layout=go.Layout(title='Salida del Sistema', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                             margin=dict(l=30, r=20, t=50, b=20))
+            data=[
+                go.Scatter(x=time_array, y=y, mode='lines+markers', name='Salida del Sistema')
+            ],
+            layout=go.Layout(
+                title='Salida del Sistema & Setpoint',
+                xaxis=dict(title='Tiempo (s)'),
+                yaxis=dict(title='Magnitud'),
+                margin=dict(l=30, r=20, t=50, b=20),
+            )
         )
+
+        # Conditionally add setpoint line in automatic mode
+        if mode_switch and setpoint is not None:
+            output_fig.add_trace(
+                go.Scatter(x=time_array, y=[setpoint] * len(time_array), mode='lines+markers', name='Setpoint')
+            )
+            output_fig.add_trace(
+                go.Scatter(x=time_array, y=pid_errors, mode='lines+markers', name='Error PID')
+            )
 
         return input_fig, output_fig
 
@@ -361,10 +390,11 @@ u = [0]  # Input to the system
 a = [0.5, 0.2]  # ARX model output coefficients
 b = [1, 0.5]  # ARX model input coefficients
 d = 1  # Discrete dead time
+pid_errors = []  # Initialize an empty list to store PID errors
 step = 0  # Current simulation step
 
 
-def arx_step(y, u, a_coeffs, b_coeffs, d):
+def arx_step(y, u, a_coeffs, b_coeffs, d, perturbance):
     """
     Calculates the next step in the ARX model.
 
@@ -386,6 +416,9 @@ def arx_step(y, u, a_coeffs, b_coeffs, d):
     for j, b in enumerate(b_coeffs):
         if b is not None and len(u) > d + j:
             y_t += b * u[-d - j - 1]
+
+    if perturbance is not None:
+        y_t += perturbance
 
     return y_t
 
