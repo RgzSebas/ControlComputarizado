@@ -2,18 +2,86 @@
 
 import time
 import numpy as np
-
 import dash
 from dash import dcc, html
 import dash_daq as daq
 import plotly.graph_objs as go
 from dash.dependencies import Input, Output, State
-
 import webbrowser
 
 # Define global variables
 current_mode = 'Manual'  # 'Manual' or 'Automatic'
-# Add other global variables for model parameters and state here
+y = [0]  # Output of the system
+u = [0]  # Input to the system
+a = [0.5, 0.2]  # ARX model output coefficients
+b = [1, 0.5]  # ARX model input coefficients
+d = 1  # Discrete dead time
+pid_errors = []  # Initialize an empty list to store PID errors
+step = 0  # Current simulation step
+
+
+def arx_step(y, u, a_coeffs, b_coeffs, d, perturbance):
+    """
+    Calculates the next step in the ARX model.
+
+    :param y: List of previous output values of the system.
+    :param u: List of input values to the system.
+    :param a_coeffs: List of coefficients for output values (a1, a2, ...). None if not provided.
+    :param b_coeffs: List of coefficients for input values (b1, b2, ...). None if not provided.
+    :param d: Discrete dead time.
+
+    :return: Next output value of the system.
+    """
+    y_t = 0
+
+    # Handle a_coeffs
+    for i, a in enumerate(a_coeffs):
+        if a is not None and len(y) > i:
+            y_t -= a * y[-i - 1]
+
+    # Handle b_coeffs
+    for j, b in enumerate(b_coeffs):
+        if b is not None and len(u) > d + j:
+            y_t += b * u[-d - j - 1]
+
+    if perturbance is not None:
+        y_t += perturbance
+
+    return y_t
+
+
+def pid_controller(set_point, current_value, Kp, Ki, Kd, dt):
+    """
+    This function calculates the control action required to reach a desired setpoint
+    based on the current value of the system, using PID control logic.
+
+    :param set_point: The desired target value for the system to achieve.
+    :param current_value: The current value of the system.
+    :param Kp: Proportional gain, a tuning parameter.
+    :param Ki: Integral gain, a tuning parameter.
+    :param Kd: Derivative gain, a tuning parameter.
+    :param dt: Time interval over which to calculate the integral and derivative, typically a small time step.
+
+    :return control_action:The control action value, which is a combination of proportional, integral, and derivative terms.
+    """
+
+    # Calculate the error as the difference between setpoint and current value
+    error = set_point - current_value
+
+    # Calculate the integral term (sum of errors over time)
+    integral = error * dt
+
+    # Calculate the derivative term (rate of change of error)
+    # Note: The current formulation seems incorrect and may need correction, e.g.,
+    # derivative = (error - previous_error) / dt
+    derivative = (error - (set_point - current_value)) / dt
+
+    # Compute the control action using PID formula
+    control_action = Kp * error + Ki * integral + Kd * derivative
+
+    return control_action
+
+
 
 app = dash.Dash(
     __name__,
@@ -29,6 +97,8 @@ url = "http://127.0.0.1:8050/"
 time.sleep(2)
 webbrowser.open(url)
 
+
+
 input_fig = go.Figure(
     data=[go.Scatter(x=[0], y=[0], mode='lines+markers')],
     layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
@@ -41,10 +111,9 @@ output_fig = go.Figure(
                      margin=dict(l=30, r=20, t=50, b=20))
 )
 
+
 # Define the layout of the web application
 app.layout = html.Div([
-
-
     html.Div([
         html.Div([
             html.Div([
@@ -183,7 +252,6 @@ app.layout = html.Div([
             ),
 
     ], id="graph-card"),
-
 ])
 
 # Callback to toggle the visibility of input fields based on the mode
@@ -197,6 +265,7 @@ def toggle_input_fields(mode_switch_value):
     else:  # Manual mode
         return {'display': 'none'}, {'display': 'block'}
 
+
 # Callback for the Toggle Switch
 @app.callback(
     Output('mode-switch-output', 'children'),  # Update this with actual output component
@@ -209,6 +278,7 @@ def update_mode(switch_value):
 
 # Global variable to track if the simulation should run
 is_simulation_running = False
+
 
 # Callback to start or stop the simulation and provide feedback
 @app.callback(
@@ -363,7 +433,7 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
                 go.Scatter(x=time_array, y=y, mode='lines+markers', name='Salida del Sistema')
             ],
             layout=go.Layout(
-                title='Salida del Sistema & Setpoint',
+                title='Salida del Sistema',
                 xaxis=dict(title='Tiempo (s)'),
                 yaxis=dict(title='Magnitud'),
                 margin=dict(l=30, r=20, t=50, b=20),
@@ -375,67 +445,14 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
             output_fig.add_trace(
                 go.Scatter(x=time_array, y=[setpoint] * len(time_array), mode='lines+markers', name='Setpoint')
             )
-            output_fig.add_trace(
-                go.Scatter(x=time_array, y=pid_errors, mode='lines+markers', name='Error PID')
-            )
+            # output_fig.add_trace(
+            #     go.Scatter(x=time_array, y=pid_errors, mode='lines+markers', name='Error PID')
+            # )
 
         return input_fig, output_fig
 
     # Return existing figures if no update or reset is required
     return dash.no_update
-
-# Initialize global variables for the simulation
-y = [0]  # Output of the system
-u = [0]  # Input to the system
-a = [0.5, 0.2]  # ARX model output coefficients
-b = [1, 0.5]  # ARX model input coefficients
-d = 1  # Discrete dead time
-pid_errors = []  # Initialize an empty list to store PID errors
-step = 0  # Current simulation step
-
-
-def arx_step(y, u, a_coeffs, b_coeffs, d, perturbance):
-    """
-    Calculates the next step in the ARX model.
-
-    :param y: List of previous output values of the system.
-    :param u: List of input values to the system.
-    :param a_coeffs: List of coefficients for output values (a1, a2, ...). None if not provided.
-    :param b_coeffs: List of coefficients for input values (b1, b2, ...). None if not provided.
-    :param d: Discrete dead time.
-    :return: Next output value of the system.
-    """
-    y_t = 0
-
-    # Handle a_coeffs
-    for i, a in enumerate(a_coeffs):
-        if a is not None and len(y) > i:
-            y_t -= a * y[-i - 1]
-
-    # Handle b_coeffs
-    for j, b in enumerate(b_coeffs):
-        if b is not None and len(u) > d + j:
-            y_t += b * u[-d - j - 1]
-
-    if perturbance is not None:
-        y_t += perturbance
-
-    return y_t
-
-
-def pid_controller(set_point, current_value, Kp, Ki, Kd, dt):
-    error = set_point - current_value
-    integral = error * dt
-    derivative = (error - (set_point - current_value)) / dt
-    return Kp * error + Ki * integral + Kd * derivative
-
-def auto_tune_pid(set_point, output):
-    # Basic heuristic for PID tuning
-    # This is a simple example and should be replaced with a more sophisticated method
-    Kp = 0.2 * set_point
-    Ki = 0.05 * set_point
-    Kd = 0.1 * set_point
-    return Kp, Ki, Kd
 
 
 
