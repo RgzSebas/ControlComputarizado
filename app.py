@@ -29,24 +29,39 @@ url = "http://127.0.0.1:8050/"
 time.sleep(2)
 webbrowser.open(url)
 
+input_fig = go.Figure(
+    data=[go.Scatter(x=[0], y=[0], mode='lines+markers')],
+    layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
+                     margin=dict(l=30, r=20, t=30, b=20))
+)
+
+output_fig = go.Figure(
+    data=[go.Scatter(x=[0], y=[0], mode='lines+markers')],
+    layout=go.Layout(title='Salida del Sistema', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
+                     margin=dict(l=30, r=20, t=30, b=20))
+)
+
 # Define the layout of the web application
 app.layout = html.Div([
-    html.Div([
-        html.Div([
-            html.H5("Control Computarizado"),
-            html.H3("Simulador Computacional de Procesos"),
-            html.Div(id="intro", children=""),
-        ], id="description-card", className="twelve columns"),
-    ], className="row", style={'padding': '10px'}),
+
 
     html.Div([
         html.Div([
+            html.Div([
+                    html.Div([
+                        html.H5("Control Computarizado"),
+                        html.H3(children="Simulador Computacional de Procesos", style={"margin": "0px"}),
+                        html.Div(id="intro", children=""),
+                    ], id="description-card", className="twelve columns"),
+                ], className="row", style={'padding': '0px'}),
             html.Div(id='feedback', children='', style={'color': 'red'}),
             # Input fields for ARX model coefficients
+            html.Hr(),
             daq.ToggleSwitch(
                 id='mode-switch',
                 label='Manual - Automatico',
                 labelPosition='bottom'),
+            html.Hr(),
             #html.Div(id='mode-switch-output'),
             html.Label('Coeficientes del modelo ARX (Requiere minimo a1)'),
             html.Table([
@@ -69,29 +84,50 @@ app.layout = html.Div([
             ], style={'padding': '10px'}),
 
             html.Div(id='auto-mode-inputs', children=[
-                html.Label('Modo Automatico'),
-                dcc.Input(id='setpoint', type='number', placeholder='Setpoint'),
-                dcc.Input(id='Kp', type='number', placeholder='Kp'),
-                dcc.Input(id='Ki', type='number', placeholder='Ki'),
-                dcc.Input(id='Kd', type='number', placeholder='Kd')
+                html.Label('Setpoint & PID'),
+                # First row with Setpoint and Kp
+                html.Div([
+                    html.Div(dcc.Input(id='setpoint', type='number', placeholder='Setpoint'),
+                             style={'flex': '50%', 'padding': '5px'}),
+                    html.Div(dcc.Input(id='Kp', type='number', placeholder='Kp'),
+                             style={'flex': '50%', 'padding': '5px'})
+                ], style={'display': 'flex', 'width': '100%'}),
+
+                # Second row with Ki and Kd
+                html.Div([
+                    html.Div(dcc.Input(id='Ki', type='number', placeholder='Ki'),
+                             style={'flex': '50%', 'padding': '5px'}),
+                    html.Div(dcc.Input(id='Kd', type='number', placeholder='Kd'),
+                             style={'flex': '50%', 'padding': '5px'})
+                ], style={'display': 'flex', 'width': '100%'})
             ], style={'padding': '10px'}),
 
             # Dropdown for selecting input signal type
             html.Div(id='manual-mode-inputs', children=[
-                html.Label('Modo Manual'),
-                dcc.Dropdown(
-                    id='entrada-dropdown',
-                    options=[
-                        {'label': 'Escalon', 'value': 'escalon'},
-                        {'label': 'Sierra', 'value': 'sierra'}
-                    ],
-                    value='escalon'  # Default value
-                ),
+                html.Label('Entrada'),
+                html.Div([
+                    # Dropdown for selecting input signal type
+                    dcc.Dropdown(
+                        id='entrada-dropdown',
+                        options=[
+                            {'label': 'Escalon', 'value': 'escalon'},
+                            {'label': 'Sierra', 'value': 'sierra'}
+                        ],
+                        value='escalon',  # Default value
+                        style={'flex': '1'}  # Flex property for equal spacing
+                    ),
 
-                # Input field for amplitude of input signal
-                dcc.Input(id='amp', type='number', placeholder='Amplitud'),
+                    # Input field for amplitude of input signal
+                    dcc.Input(
+                        id='amp',
+                        type='number',
+                        placeholder='Amplitud',
+                        style={'flex': '1', 'marginLeft': '10px'}  # marginLeft for spacing
+                    )
+                ], style={'display': 'flex', 'padding': '10px'}),  # Flex display for horizontal row
             ], style={'padding': '10px'}),
 
+            html.Hr(),
             # Slider for selecting the sampling interval
             html.Label('Intervalo de Muestreo'),
             dcc.Slider(
@@ -100,30 +136,42 @@ app.layout = html.Div([
                 max=4,
                 step=1,
                 marks={"0": "0.1s", "1": "0.25s", "2": "0.5s", "3": "1s", "4": "10s"},
-                value=2  # Default value
+                value=1  # Default value
             ),
 
+            html.Hr(),
             # Input field for amplitude of perturbation signal
             html.Label('Perturbación'),
             dcc.Input(id='amp_pert', type='number', placeholder='Amplitud', value=0),
 
+            html.Hr(),
             # Start and stop buttons
             html.Div([
-                html.Button('START', id='start-button', n_clicks=0),
-                html.Div(id='start-stop-trigger', style={'display': 'none'}),  # Invisible div for triggering updates
-                html.Button('STOP', id='stop-button', n_clicks=0),
-                html.Button('RESET', id='reset-button', n_clicks=0),
-            ], style={'padding': '10px'}),
+                # START button with green color
+                html.Button('START', id='start-button', n_clicks=0,
+                            style={'marginRight': '5px', 'backgroundColor': 'green', 'color': 'white'}),
+
+                # STOP button with red color
+                html.Button('STOP', id='stop-button', n_clicks=0,
+                            style={'marginRight': '5px', 'backgroundColor': 'red', 'color': 'white'}),
+
+                # RESET button with blue color
+                html.Button('RESET', id='reset-button', n_clicks=0,
+                            style={'backgroundColor': 'blue', 'color': 'white'}),
+
+                # Invisible div for triggering updates
+                html.Div(id='start-stop-trigger', style={'display': 'none'}),
+            ], style={'display': 'flex', 'padding': '10px'}),
 
             # Student information
-            html.Label('Sebastian Rodriguez Castro - A01700378'),
+            html.H5('Sebastian Rodriguez Castro - A01700378'),
 
         ], id="control-card", className="four columns", style={'padding': '10px'}),
 
         html.Div([
             # Graphs for displaying results
-            dcc.Graph(id='graph_input'),
-            dcc.Graph(id='graph_output'),
+            dcc.Graph(id='graph_input', figure=input_fig),
+            dcc.Graph(id='graph_output', figure=output_fig),
             dcc.Interval(
                     id='interval-component',
                     interval=1*1000,  # in milliseconds (update every 1 second)
@@ -164,10 +212,11 @@ is_simulation_running = False
     [Output('start-stop-trigger', 'children'), Output('feedback', 'children')],
     [Input('start-button', 'n_clicks'), Input('stop-button', 'n_clicks')],
     [State('mode-switch', 'value'), State('entrada-dropdown', 'value'), State('amp', 'value'),
-     State('amp_pert', 'value'), State('a1', 'value'), State('setpoint', 'value')],
+     State('amp_pert', 'value'), State('a1', 'value'), State('setpoint', 'value'),
+     State('Kp', 'value'), State('Ki', 'value'), State('Kd', 'value')],  # Add states for Kp, Ki, Kd
     prevent_initial_call=True
 )
-def control_simulation(start_clicks, stop_clicks, mode_switch, entrada_type, amp, amp_pert, a1, setpoint):
+def control_simulation(start_clicks, stop_clicks, mode_switch, entrada_type, amp, amp_pert, a1, setpoint, Kp, Ki, Kd):
     global is_simulation_running
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     feedback_message = ""
@@ -176,17 +225,16 @@ def control_simulation(start_clicks, stop_clicks, mode_switch, entrada_type, amp
         missing_inputs = []
         # Check required inputs based on the mode
         if mode_switch:  # Automatic mode
-            if a1 is None: missing_inputs.append("a1 (ARX Coefficient)")
+            if a1 is None: missing_inputs.append("Minimo a1 (coeficiente ARX)")
             if setpoint is None: missing_inputs.append("Setpoint")
-            #if amp_pert is None: missing_inputs.append("Amplitude of Perturbation")
+            if None in [Kp, Ki, Kd]: missing_inputs.append("Coeficientes PID")
         else:  # Manual mode
-            if entrada_type is None: missing_inputs.append("Type of Input (Entrada)")
-            if amp is None: missing_inputs.append("Amplitude")
-            #if amp_pert is None: missing_inputs.append("Amplitude of Perturbation")
-            if a1 is None: missing_inputs.append("a1 (ARX Coefficient)")
+            if entrada_type is None: missing_inputs.append("Tipo de entrada")
+            if amp is None: missing_inputs.append("Amplitud de entrada")
+            if a1 is None: missing_inputs.append("Minimo a1 (coeficiente ARX)")
 
         if missing_inputs:
-            feedback_message = "Please provide: " + ", ".join(missing_inputs)
+            feedback_message = "Campos requeridos: " + ", ".join(missing_inputs)
             return "", feedback_message
 
         is_simulation_running = True
@@ -214,11 +262,13 @@ def update_interval(value):
     [State('a1', 'value'), State('a2', 'value'), State('a3', 'value'), State('a4', 'value'),
      State('b1', 'value'), State('b2', 'value'), State('b3', 'value'), State('b4', 'value'),
      State('entrada-dropdown', 'value'), State('amp', 'value'), State('amp_pert', 'value'),
-     State('mode-switch', 'value'), State('setpoint', 'value'), State('intervalo-slider', 'value')],  # Include setpoint here
+     State('mode-switch', 'value'), State('setpoint', 'value'), State('intervalo-slider', 'value'),
+     State('Kp', 'value'), State('Ki', 'value'), State('Kd', 'value')],  # Add PID coefficient states
     prevent_initial_call=True
 )
 def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_clicks,
-                            a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch, setpoint, intervalo_slider_value):
+                            a1, a2, a3, a4, b1, b2, b3, b4, entrada_type, amp, amp_pert, mode_switch, setpoint, intervalo_slider_value,
+                            Kp, Ki, Kd):  # Add PID coefficients as parameters
     global y, u, step, is_simulation_running
 
     # Determine which input triggered the callback
@@ -255,8 +305,10 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         current_mode = 'Automatico' if mode_switch else 'Manual'
 
         if current_mode == 'Automatico':
-            # Auto-tune PID parameters based on the setpoint
-            Kp, Ki, Kd = auto_tune_pid(setpoint, y[-1])
+            # Use user-provided PID parameters
+            # Check if PID parameters are provided
+            # if None in [Kp, Ki, Kd]:
+            #    raise dash.exceptions.PreventUpdate
 
             # PID controller for automatic mode
             u_t = pid_controller(setpoint, y[-1], Kp, Ki, Kd, dt)
@@ -285,12 +337,14 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         # Update the graph data to use time_array for the x-axis
         input_fig = go.Figure(
             data=[go.Scatter(x=time_array, y=u, mode='lines+markers')],
-            layout=go.Layout(title='Input Signal', xaxis=dict(title='Time (s)'), yaxis=dict(title='Input Value'))
+            layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
+                             margin=dict(l=30, r=20, t=30, b=20))
         )
 
         output_fig = go.Figure(
             data=[go.Scatter(x=time_array, y=y, mode='lines+markers')],
-            layout=go.Layout(title='System Output', xaxis=dict(title='Time (s)'), yaxis=dict(title='Output Value'))
+            layout=go.Layout(title='Salida del Sistema', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
+                             margin=dict(l=30, r=20, t=30, b=20))
         )
 
         return input_fig, output_fig
@@ -352,4 +406,4 @@ def auto_tune_pid(set_point, output):
 
 # Run the server
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run_server(debug=False)
