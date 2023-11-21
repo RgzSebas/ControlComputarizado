@@ -32,13 +32,13 @@ webbrowser.open(url)
 input_fig = go.Figure(
     data=[go.Scatter(x=[0], y=[0], mode='lines+markers')],
     layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                     margin=dict(l=30, r=20, t=30, b=20))
+                     margin=dict(l=30, r=20, t=50, b=20))
 )
 
 output_fig = go.Figure(
     data=[go.Scatter(x=[0], y=[0], mode='lines+markers')],
     layout=go.Layout(title='Salida del Sistema', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                     margin=dict(l=30, r=20, t=30, b=20))
+                     margin=dict(l=30, r=20, t=50, b=20))
 )
 
 # Define the layout of the web application
@@ -175,6 +175,12 @@ app.layout = html.Div([
         html.Div([
             dcc.Graph(id='graph_output', figure=output_fig),
         ], className="eight columns", style={'padding': '0px', 'maxHeight': '50%', 'overflowY': 'auto'}),
+
+        dcc.Interval(
+                id='interval-component',
+                interval=1000,  # in milliseconds (e.g., 1000ms = 1 second)
+                n_intervals=0
+            ),
 
     ], id="graph-card"),
 
@@ -335,13 +341,13 @@ def update_and_reset_graphs(n_intervals, start_n_clicks, stop_n_clicks, reset_n_
         input_fig = go.Figure(
             data=[go.Scatter(x=time_array, y=u, mode='lines+markers')],
             layout=go.Layout(title='Señal de Entrada', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                             margin=dict(l=30, r=20, t=30, b=20))
+                             margin=dict(l=30, r=20, t=50, b=20))
         )
 
         output_fig = go.Figure(
             data=[go.Scatter(x=time_array, y=y, mode='lines+markers')],
             layout=go.Layout(title='Salida del Sistema', xaxis=dict(title='Tiempo (s)'), yaxis=dict(title='Magnitud'),
-                             margin=dict(l=30, r=20, t=30, b=20))
+                             margin=dict(l=30, r=20, t=50, b=20))
         )
 
         return input_fig, output_fig
@@ -403,4 +409,4 @@ def auto_tune_pid(set_point, output):
 
 # Run the server
 if __name__ == "__main__":
-    app.run_server(debug=False)
+    app.run_server(debug=True)
