@@ -169,15 +169,12 @@ app.layout = html.Div([
         ], id="control-card", className="four columns", style={'padding': '10px'}),
 
         html.Div([
-            # Graphs for displaying results
             dcc.Graph(id='graph_input', figure=input_fig),
+        ], className="eight columns", style={'padding': '5px', 'maxHeight': '50%', 'overflowY': 'auto'}),
+
+        html.Div([
             dcc.Graph(id='graph_output', figure=output_fig),
-            dcc.Interval(
-                    id='interval-component',
-                    interval=1*1000,  # in milliseconds (update every 1 second)
-                    n_intervals=0
-                ),
-        ], className="eight columns", style={'padding': '10px'}),
+        ], className="eight columns", style={'padding': '0px', 'maxHeight': '50%', 'overflowY': 'auto'}),
 
     ], id="graph-card"),
 
