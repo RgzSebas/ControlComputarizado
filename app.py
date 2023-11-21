@@ -68,22 +68,29 @@ app.layout = html.Div([
                 ])
             ], style={'padding': '10px'}),
 
-            html.Label('Setpoint - Modo Automatico'),
-            dcc.Input(id='setpoint', type='number', placeholder='Setpoint'),
+            html.Div(id='auto-mode-inputs', children=[
+                html.Label('Modo Automatico'),
+                dcc.Input(id='setpoint', type='number', placeholder='Setpoint'),
+                dcc.Input(id='Kp', type='number', placeholder='Kp'),
+                dcc.Input(id='Ki', type='number', placeholder='Ki'),
+                dcc.Input(id='Kd', type='number', placeholder='Kd')
+            ], style={'padding': '10px'}),
 
             # Dropdown for selecting input signal type
-            html.Label('Entrada - Modo Manual'),
-            dcc.Dropdown(
-                id='entrada-dropdown',
-                options=[
-                    {'label': 'Escalon', 'value': 'escalon'},
-                    {'label': 'Sierra', 'value': 'sierra'}
-                ],
-                value='escalon'  # Default value
-            ),
+            html.Div(id='manual-mode-inputs', children=[
+                html.Label('Modo Manual'),
+                dcc.Dropdown(
+                    id='entrada-dropdown',
+                    options=[
+                        {'label': 'Escalon', 'value': 'escalon'},
+                        {'label': 'Sierra', 'value': 'sierra'}
+                    ],
+                    value='escalon'  # Default value
+                ),
 
-            # Input field for amplitude of input signal
-            dcc.Input(id='amp', type='number', placeholder='Amplitud'),
+                # Input field for amplitude of input signal
+                dcc.Input(id='amp', type='number', placeholder='Amplitud'),
+            ], style={'padding': '10px'}),
 
             # Slider for selecting the sampling interval
             html.Label('Intervalo de Muestreo'),
@@ -127,6 +134,17 @@ app.layout = html.Div([
     ], id="graph-card"),
 
 ])
+
+# Callback to toggle the visibility of input fields based on the mode
+@app.callback(
+    [Output('auto-mode-inputs', 'style'), Output('manual-mode-inputs', 'style')],
+    [Input('mode-switch', 'value')]
+)
+def toggle_input_fields(mode_switch_value):
+    if mode_switch_value:  # Automatic mode
+        return {'display': 'block'}, {'display': 'none'}
+    else:  # Manual mode
+        return {'display': 'none'}, {'display': 'block'}
 
 # Callback for the Toggle Switch
 @app.callback(
